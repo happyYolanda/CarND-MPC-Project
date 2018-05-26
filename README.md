@@ -2,6 +2,60 @@
 Self-Driving Car Engineer Nanodegree Program
 
 ---
+## The Model
+The goal of the model is to calculate the trajectory, actuation and send back steering to the simulator. 
+
+The states include:
+```
+x, y - car's position
+psi - car's heading direction
+v - car's speed
+cte - cross-track error
+epsi - orientation error
+```
+
+The actuators include:
+```
+Lf - the distance between the center of mass of the vehicle and the front wheels.
+delta - steering angle
+a - car's acceleration
+```
+
+The update equations:
+
+```
+      x_[t+1] = x[t] + v[t] * cos(psi[t]) * dt
+      y_[t+1] = y[t] + v[t] * sin(psi[t]) * dt
+      psi_[t+1] = psi[t] + v[t] * delta[t] / Lf * dt
+      v_[t+1] = v[t] + a[t] * dt
+      cte[t+1] = f(x[t]) - y[t] + v[t] * sin(epsi[t]) * dt
+      epsi[t+1] = psi[t] - psides[t] + v[t] * delta[t] / Lf * dt
+```
+
+## Timestep Length and Elapsed Duration (N & dt)
+The timestep length(`N`) and the elapsed duration (`dt`) define the prediction horizon. I tune N and dt by trial and error. I started with N=5 and dt=0.1, but find the car driving in wrong way. Then I tune N for some values but doesn't work. I think too much value of N makes the car run wildly very easily. Then I found the value of dt help to make the car run smoothly.  I finally set N to 10 and dt to 0.2, which performs best in my experiments.
+
+## Polynomial Fitting and MPC Preprocessing
+The waypoints are transformed to car coordinate system:
+```
+   car_x = (ptsx[i] - px) * cos(psi) + (ptsy[i] - py) * sin(psi);
+   car_y = (ptsy[i] - py) * cos(psi) - (ptsx[i] - px) * sin(psi);
+```
+
+Then a 3rd-degree polynomial was used to fit to the transformed waypoints as well as to compute the trajectory of the car. 
+
+## Model Predictive Control with Latency
+Before sending actuations to the simulator, a latency of 100ms is added. The state values are calculated using the model and the delay interval:
+```
+    Lf=2.67, latency=0.1 sec
+    x_delay = (0.0 + v * latency);
+    y_delay = 0.0;
+    psi_delay = 0.0 + v * steer_value_input / Lf * latency;
+    v_delay = 0.0 + v + throttle_value_input * latency;
+    cte_delay = cte + (v * sin(epsi) * latency);
+    epsi_delay = epsi + v * steer_value_input / Lf * latency;
+```
+
 
 ## Dependencies
 

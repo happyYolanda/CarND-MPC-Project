@@ -65,14 +65,7 @@ Eigen::VectorXd polyfit(Eigen::VectorXd xvals, Eigen::VectorXd yvals,
   return result;
 }
 
-/*
- * Function to transform coordinates from map to car's coordinate system
- * psi - car's heading in map coordinates
- * (x_car, y_car) - car's position in map coordinates
- * (x_point, y_point) - point position in map coordinates
- * returns the point's coordinates in car's coordinates
- */
-vector<double> map_to_car_coord(double psi, double x_car, double y_car, double x_point, double y_point){
+vector<double> carcoord_map(double psi, double x_car, double y_car, double x_point, double y_point){
   double car_x = (x_point - x_car) * cos(psi) + (y_point - y_car) * sin(psi);
   double car_y = (y_point - y_car) * cos(psi) - (x_point - x_car) * sin(psi);
   return {car_x, car_y};
@@ -117,31 +110,26 @@ int main() {
           double throttle_value_in = j[1]["throttle"];
           Eigen::VectorXd ptsx_car = Eigen::VectorXd(ptsx.size());
           Eigen::VectorXd ptsy_car = Eigen::VectorXd(ptsx.size());
-          // Convert from map coordinates to vehicle coordinates
           for (int i = 0; i < ptsx.size(); i++){
-            auto car_coord = map_to_car_coord(psi, px, py, ptsx[i], ptsy[i]);
+            auto car_coord = carcoord_map(psi, px, py, ptsx[i], ptsy[i]);
             ptsx_car[i] = car_coord[0];
             ptsy_car[i] = car_coord[1];
           }
           auto coeffs = polyfit(ptsx_car, ptsy_car, 3);
-          // errors in the current car position
           double cte = polyeval(coeffs, 0) - 0.0;
           double epsi = -atan(coeffs[1]);
-          // Create current state vector and solve
-          // Add a latency of 100ms into the state before sending it to solver
           Eigen::VectorXd state(6);
-          double latency = 0.1; //add a latency of 100ms
+          double latency = 0.1; 
           double Lf = 2.67;
-          double x_dl = (0.0 + v * latency);
-          double y_dl = 0.0;
-          double psi_dl = 0.0 + v * steer_value_in / Lf * latency;
-          double v_dl = 0.0 + v + throttle_value_in * latency;
-          double cte_dl = cte + (v * sin(epsi) * latency);
-          double epsi_dl = epsi + v * steer_value_in / Lf * latency;
-          state << x_dl, y_dl, psi_dl, v_dl, cte_dl, epsi_dl; //latency compensated state
+          double x_delay = (0.0 + v * latency);
+          double y_delay = 0.0;
+          double psi_delay = 0.0 + v * steer_value_in / Lf * latency;
+          double v_delay = 0.0 + v + throttle_value_in * latency;
+          double cte_delay = cte + (v * sin(epsi) * latency);
+          double epsi_delay = epsi + v * steer_value_in / Lf * latency;
+          state << x_delay, y_delay, psi_delay, v_delay, cte_delay, epsi_delay; //latency compensated state
           auto result = mpc.Solve(state, coeffs);
 
-          // Compute steering and angle value
           double steer_value = -result[6]/deg2rad(25); //normalize to [-1, 1]
           double throttle_value = result[7];
 
@@ -165,7 +153,7 @@ int main() {
           vector<double> next_x_vals;
           vector<double> next_y_vals;
           for (int i = 0; i < ptsx.size(); i++){
-              //auto car_coord = map_to_car_coord(psi, px, py, ptsx[i], ptsy[i]);
+              //auto car_coord = carcoord_map(psi, px, py, ptsx[i], ptsy[i]);
               next_x_vals.push_back(ptsx_car[i]);
               next_y_vals.push_back(ptsy_car[i]);
           }
@@ -187,7 +175,7 @@ int main() {
           //
           // NOTE: REMEMBER TO SET THIS TO 100 MILLISECONDS BEFORE
           // SUBMITTING.
-          this_thread::sleep_for(chrono::milliseconds((int)(latency*1000)));
+          this_thread::sleep_for(chrono::milliseconds(100));
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
         }
       } else {
